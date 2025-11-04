@@ -18,11 +18,14 @@ def run_command(command):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
+        encoding='utf-8' # Olası karakter hatalarını önle
     )
     for line in process.stdout:
-        logging.info(line.strip())
+        # pip'in ilerleme çubuklarını temizlemek için satır sonu karakterlerini yönet
+        print(line, end='', flush=True)
     process.wait()
+    print() # Son bir yeni satır ekle
     if process.returncode != 0:
         logging.error(f"Komut başarısız oldu! Çıkış kodu: {process.returncode}")
         sys.exit(process.returncode)
@@ -31,6 +34,9 @@ def main():
     """
     Modeli indirir, dönüştürür ve temizlik yapar.
     """
+    # --- DÜZELTME BURADA: Optimize edilmiş transfer protokolünü devre dışı bırakıyoruz ---
+    os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+
     model_name = os.environ.get("MODEL_NAME")
     compute_type = os.environ.get("COMPUTE_TYPE", "int8")
     output_dir = "/models/converted_model"
