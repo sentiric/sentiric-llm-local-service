@@ -1,0 +1,7 @@
+# Bu dosya, sadece modeli indirmek ve dönüştürmek için gereken
+# "ağır" kütüphaneleri içerir.
+
+torch --extra-index-url https://download.pytorch.org/whl/cpu
+ctranslate2[transformers]>=4.0.0
+huggingface-hub>=0.20.0
+structlog
