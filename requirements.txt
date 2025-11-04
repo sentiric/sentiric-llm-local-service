@@ -3,7 +3,7 @@ uvicorn[standard]==0.24.0
 ctranslate2==4.3.1
 transformers==4.43.3
 huggingface-hub>=0.20.0
-# ct2-transformers-converter, transformers ile birlikte gelir.
+torch --extra-index-url https://download.pytorch.org/whl/cpu
 pydantic-settings==2.4.0
 structlog==23.3.0
 grpcio>=1.62.0
