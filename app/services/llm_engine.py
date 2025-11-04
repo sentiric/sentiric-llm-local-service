@@ -1,20 +1,13 @@
 import os
 import structlog
 import asyncio
-import subprocess
 from typing import Generator as PyGenerator
 from ctranslate2 import Generator
 from transformers import AutoTokenizer
-from huggingface_hub import snapshot_download, HfFolder
 from app.core.config import settings
-
-# Hugging Face loglarını daha görünür yap
-from huggingface_hub.utils import logging as hf_logging
-hf_logging.set_verbosity_info()
 
 logger = structlog.get_logger(__name__)
 
-# ... (LLMEngine sınıfının geri kalanı aynı kalabilir, bir önceki versiyon doğruydu)
 class LLMEngine:
     def __init__(self):
         self.generator: Generator | None = None
@@ -29,45 +22,24 @@ class LLMEngine:
         if self.model_loaded:
             return
 
-        model_name = settings.LLM_LOCAL_SERVICE_MODEL_NAME
-        model_cache_path = "/app/model-cache"
-        ct2_model_path = os.path.join(model_cache_path, model_name.replace("/", "_") + f"_ct2_{self.compute_type}")
+        # Dockerfile tarafından sağlanan, önceden dönüştürülmüş modelin yolu
+        ct2_model_path = "/app/model-cache/converted_model"
+        # Tokenizer hala orijinal adıyla Hugging Face'den indirilecek (bu küçük bir işlemdir)
+        tokenizer_name = settings.LLM_LOCAL_SERVICE_MODEL_NAME
+        tokenizer_cache_path = "/app/model-cache/hf_tokenizer"
 
         try:
-            if not os.path.exists(os.path.join(ct2_model_path, "model.bin")):
-                logger.warning("CTranslate2 modeli bulunamadı. İndirme ve dönüştürme işlemi başlatılıyor...", model=model_name)
-                
-                logger.info("Orijinal model indiriliyor (İlerleme logları aşağıda görünecektir)...", model=model_name)
-                hf_model_path = snapshot_download(repo_id=model_name, cache_dir=model_cache_path, local_files_only=False)
-                logger.info("Orijinal model indirildi.", path=hf_model_path)
-
-                logger.info("Model CTranslate2 formatına dönüştürülüyor...", output_path=ct2_model_path)
-                
-                command = [
-                    "ct2-transformers-converter", "--model", hf_model_path,
-                    "--output_dir", ct2_model_path, "--quantization", self.compute_type, "--force"
-                ]
-                
-                process = await asyncio.create_subprocess_exec(
-                    *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                
-                stdout, stderr = await process.communicate()
-
-                if process.returncode != 0:
-                    logger.error("Model dönüştürme başarısız!", stderr=stderr.decode())
-                    raise RuntimeError("CTranslate2 model conversion failed.")
-                else:
-                    logger.info("Model başarıyla dönüştürüldü.", stdout=stdout.decode())
-
-            logger.info("Loading local LLM model...", path=ct2_model_path, device=self.device, compute=self.compute_type)
+            logger.info("Loading pre-converted local LLM model...", path=ct2_model_path, device=self.device)
             self.generator = Generator(ct2_model_path, device=self.device)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            
+            logger.info("Loading tokenizer...", tokenizer=tokenizer_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir=tokenizer_cache_path)
+            
             self.model_loaded = True
-            logger.info("✅ Local LLM model loaded successfully.")
+            logger.info("✅ Local LLM model and tokenizer loaded successfully.")
 
         except Exception as e:
-            logger.error("❌ Model yükleme veya dönüştürme sırasında kritik hata oluştu.", error=str(e), exc_info=True)
+            logger.error("❌ Failed to load local LLM resources", error=str(e), exc_info=True)
             self.model_loaded = False
 
     def generate_stream(self, prompt: str) -> PyGenerator[str, None, None]:
@@ -80,7 +52,9 @@ class LLMEngine:
             tokens = self.tokenizer.convert_ids_to_tokens(self.tokenizer.encode(prompt_formatted))
             
             step_results = self.generator.generate_tokens(
-                tokens, sampling_temperature=0.6, max_length=1024,
+                tokens,
+                sampling_temperature=0.6,
+                max_length=1024,
                 end_token=[self.tokenizer.eos_token_id] if self.tokenizer.eos_token_id is not None else []
             )
 
@@ -88,5 +62,5 @@ class LLMEngine:
                 token_str = self.tokenizer.decode([step.token_id])
                 yield token_str
         except Exception as e:
-            logger.error("Token üretimi sırasında hata oluştu.", exc_info=True)
+            logger.error("Token generation failed.", exc_info=True)
             yield "[HATA: Model yanıt üretemedi.]"
