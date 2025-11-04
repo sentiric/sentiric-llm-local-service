@@ -1,5 +1,6 @@
 import grpc
 import structlog
+import asyncio
 from app.services.llm_engine import LLMEngine
 from app.core.config import settings
 from sentiric.llm.v1 import local_pb2, local_pb2_grpc
@@ -19,11 +20,18 @@ class LLMLocalService(local_pb2_grpc.LLMLocalServiceServicer):
             if not self.engine.model_loaded:
                 await context.abort(grpc.StatusCode.UNAVAILABLE, "Model is not ready.")
 
+            if not request.prompt or not request.prompt.strip():
+                await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Prompt cannot be empty.")
+
             for token in self.engine.generate_stream(request.prompt):
                 yield local_pb2.LocalGenerateStreamResponse(token=token)
-        except Exception as e:
-            logger.error("Error during gRPC stream generation.", exc_info=True)
-            await context.abort(grpc.StatusCode.INTERNAL, "Stream generation failed.")
+        
+        except asyncio.CancelledError:
+            logger.warning("Stream cancelled by client.", peer=context.peer())
+        
+        except Exception:
+            logger.error("Unhandled exception during gRPC stream generation.", exc_info=True)
+            await context.abort(grpc.StatusCode.INTERNAL, "An internal error occurred during stream generation.")
 
 async def serve(engine: LLMEngine) -> grpc.aio.Server:
     server = grpc.aio.server()

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.services.llm_engine import LLMEngine
@@ -33,6 +34,9 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan
 )
+
+# Prometheus metriklerini etkinleştir ve /metrics endpoint'ini oluştur
+Instrumentator().instrument(app).expose(app)
 
 @app.get("/health", tags=["Health"])
 async def health_check():

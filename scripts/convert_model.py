@@ -19,13 +19,12 @@ def run_command(command):
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
-        encoding='utf-8' # Olası karakter hatalarını önle
+        encoding='utf-8'
     )
     for line in process.stdout:
-        # pip'in ilerleme çubuklarını temizlemek için satır sonu karakterlerini yönet
         print(line, end='', flush=True)
     process.wait()
-    print() # Son bir yeni satır ekle
+    print() 
     if process.returncode != 0:
         logging.error(f"Komut başarısız oldu! Çıkış kodu: {process.returncode}")
         sys.exit(process.returncode)
@@ -34,11 +33,23 @@ def main():
     """
     Modeli indirir, dönüştürür ve temizlik yapar.
     """
-    # --- DÜZELTME BURADA: Optimize edilmiş transfer protokolünü devre dışı bırakıyoruz ---
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
     model_name = os.environ.get("MODEL_NAME")
-    compute_type = os.environ.get("COMPUTE_TYPE", "int8")
+    compute_type_input = os.environ.get("COMPUTE_TYPE", "auto")
+    device = os.environ.get("DEVICE", "cpu")
+    
+    # "auto" değerini CTranslate2'nin anlayacağı formata çevir
+    if compute_type_input == "auto":
+        if device == "cuda":
+            compute_type = "float16"
+            logging.info(f"'{compute_type_input}' compute type detected for CUDA device, setting quantization to '{compute_type}'.")
+        else:
+            compute_type = "int8"
+            logging.info(f"'{compute_type_input}' compute type detected for CPU device, setting quantization to '{compute_type}'.")
+    else:
+        compute_type = compute_type_input
+
     output_dir = "/models/converted_model"
     hf_cache_dir = "/models/hf_cache"
 
