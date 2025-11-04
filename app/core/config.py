@@ -16,7 +16,8 @@ class Settings(BaseSettings):
     def get_device(self) -> str:
         if self.LLM_LOCAL_SERVICE_DEVICE == "auto":
             try:
-                return "cuda" if ctranslate2.get_device_count("cuda") > 0 else "cpu"
+                # Ctranslate2'nin CUDA desteği olup olmadığını kontrol etmenin en güvenilir yolu
+                return "cuda" if "cuda" in ctranslate2.get_supported_compute_types("cuda") else "cpu"
             except Exception:
                 return "cpu"
         return self.LLM_LOCAL_SERVICE_DEVICE

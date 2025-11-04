@@ -13,7 +13,6 @@ class LLMEngine:
     async def load_model(self):
         if self.model_loaded:
             return
-        # Bu, bir sonraki adımda gerçek model yükleme mantığıyla değiştirilecek.
         logger.info("Simulating model load...", model=settings.LLM_LOCAL_SERVICE_MODEL_NAME, device=self.device)
         await asyncio.sleep(2) # Gerçekçi bir gecikme simülasyonu
         self.model_loaded = True

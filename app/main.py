@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.services.llm_engine import LLMEngine
 from app.services.grpc_server import serve as serve_grpc
+import asyncio
 
 logger = structlog.get_logger(__name__)
 
@@ -17,11 +18,8 @@ async def lifespan(app: FastAPI):
     engine = LLMEngine()
     app.state.engine = engine
     
-    # Modeli arka planda yükle
-    import asyncio
     asyncio.create_task(engine.load_model())
     
-    # gRPC sunucusunu başlat
     grpc_server = await serve_grpc(engine)
     app.state.grpc_server = grpc_server
     

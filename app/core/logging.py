@@ -6,12 +6,12 @@ from app.core.config import settings
 def setup_logging():
     log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
     
-    # Gürültülü kütüphanelerin log seviyelerini ayarla
     noisy_libraries = {
         "numba": logging.WARNING,
         "huggingface_hub": logging.WARNING,
         "filelock": logging.WARNING,
         "uvicorn.access": logging.WARNING,
+        "urllib3": logging.WARNING,
     }
     for lib_name, level in noisy_libraries.items():
         logging.getLogger(lib_name).setLevel(level)
@@ -34,5 +34,7 @@ def setup_logging():
     )
     
     root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
-    root_logger.addHandler(logging.StreamHandler(sys.stdout))
+    if not root_logger.hasHandlers():
+        root_logger.setLevel(log_level)
+        handler = logging.StreamHandler(sys.stdout)
+        root_logger.addHandler(handler)

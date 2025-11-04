@@ -2,24 +2,24 @@
 FROM python:3.11-slim-bookworm AS builder
 WORKDIR /wheelhouse
 RUN pip install --no-cache-dir wheel
-COPY requirements.txt .
-RUN pip wheel --no-cache-dir -r requirements.txt
+COPY requirements.gpu.txt .
+RUN pip wheel --no-cache-dir -r requirements.gpu.txt --index-url https://download.pytorch.org/whl/cu121
 
 # STAGE 2: Final - Çalışma zamanı imajı
-FROM python:3.11-slim-bookworm
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     HF_HOME=/app/model-cache \
-    NUMBA_CACHE_DIR=/tmp/numba_cache \
     PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 python3.11-venv python3-pip curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN python -m venv /opt/venv
+RUN python3.11 -m venv /opt/venv
 
 COPY --from=builder /wheelhouse /wheelhouse
 RUN pip install --no-cache-dir /wheelhouse/*.whl && rm -rf /wheelhouse /root/.cache/pip

@@ -1,4 +1,3 @@
-import asyncio
 import grpc
 import structlog
 from app.services.llm_engine import LLMEngine
@@ -15,7 +14,7 @@ class LLMLocalService(local_pb2_grpc.LLMLocalServiceServicer):
         self,
         request: local_pb2.LocalGenerateStreamRequest,
         context: grpc.aio.ServicerContext,
-    ) -> local_pb2.LocalGenerateStreamResponse:
+    ):
         try:
             if not self.engine.model_loaded:
                 await context.abort(grpc.StatusCode.UNAVAILABLE, "Model is not ready.")
