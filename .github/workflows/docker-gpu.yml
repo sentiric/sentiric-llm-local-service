@@ -32,3 +32,15 @@ jobs:
           file: ./Dockerfile.gpu
           push: true
           tags: ghcr.io/${{ github.repository }}:gpu-latest
+          # no-cache: true parametresi disk sorunlarını artırabilir, şimdilik kaldırıyoruz.
+          # Docker'ın katman önbelleğini akıllıca kullanmasına izin verelim.
+
+      # --- YENİ TEMİZLİK ADIMI BURADA ---
+      - name: Clean up Docker resources
+        if: always() # Bu adım, önceki adım başarısız olsa bile çalışır
+        run: |
+          echo "==> Cleaning up Docker build cache and images to free up space..."
+          docker builder prune -af
+          docker image prune -af
+          echo "==> Displaying final disk space..."
+          df -h
