@@ -1,5 +1,5 @@
 # =================================================================
-#    SENTIRIC LLM-LOCAL-SERVICE - CPU & ULTRA-OPTIMIZED (FINAL)
+#    SENTIRIC LLM-LOCAL-SERVICE - CPU & ULTRA-OPTIMIZED (FINAL v2)
 # =================================================================
 
 # --- STAGE 1: Converter ---
@@ -7,15 +7,21 @@
 # torch gibi büyük kütüphaneleri içerir ama nihai imajda yer almaz.
 FROM python:3.11-slim-bookworm AS converter
 WORKDIR /app
+
 RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    # --- DÜZELTME BURADA: Hem torch hem de transformers gerekli ---
     pip install --no-cache-dir "ctranslate2[transformers]" "torch" --extra-index-url https://download.pytorch.org/whl/cpu && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Bu komut, modeli indirip /app/model_ct2 klasörüne dönüştürecek.
-# Ortam değişkenleri build sırasında sağlanacak.
 ARG MODEL_NAME
 ARG COMPUTE_TYPE
-RUN ct2-transformers-converter --model ${MODEL_NAME} --output_dir model_ct2 --quantization ${COMPUTE_TYPE} --force
+
+# --- DÜZELTME BURADA: Script'i modül olarak çalıştırıyoruz ---
+RUN python -m ct2_transformers_converter.converter \
+    --model ${MODEL_NAME} \
+    --output_dir model_ct2 \
+    --quantization ${COMPUTE_TYPE} \
+    --force
 
 # --- STAGE 2: Builder ---
 # Bu aşama, sadece runtime için gerekli olan küçük kütüphaneleri derler.
