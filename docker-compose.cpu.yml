@@ -1,18 +1,24 @@
 services:
+  llm-model-converter:
+    build:
+      context: .
+      dockerfile: Dockerfile.converter
+    environment:
+      - MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
+      - COMPUTE_TYPE=${LLM_LOCAL_SERVICE_COMPUTE_TYPE:-int8}
+    volumes:
+      - llm_model_cache:/models
+    # Bu servis işini yapıp çıkacak, port açmasına gerek yok.
+
   llm-local-service-cpu:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # Bu argümanlar, Dockerfile'daki 'converter' aşamasına gönderilir
-        MODEL_NAME: ${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-        COMPUTE_TYPE: ${LLM_LOCAL_SERVICE_COMPUTE_TYPE:-int8}
     container_name: llm-local-service-cpu
     environment:
       - ENV=development
       - LOG_LEVEL=debug
       - LLM_LOCAL_SERVICE_DEVICE=cpu
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=int8
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
     volumes: 
       - llm_model_cache:/app/model-cache
@@ -20,12 +26,15 @@ services:
       - "16060:16060"
       - "16061:16061"
     restart: unless-stopped
+    depends_on:
+      llm-model-converter:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s # Artık indirme yapmadığı için başlangıç süresi çok daha kısa
+      start_period: 15s
 
 volumes:
   llm_model_cache:
