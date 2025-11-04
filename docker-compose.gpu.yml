@@ -1,6 +1,9 @@
 services:
   llm-local-service-gpu:
-    image: ghcr.io/sentiric/sentiric-llm-local-service:gpu-latest
+    # image: ghcr.io/sentiric/sentiric-llm-local-service:gpu-latest # <-- Bu satırı yorumla veya sil
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
     container_name: llm-local-service-gpu
     environment:
       - ENV=development

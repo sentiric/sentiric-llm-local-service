@@ -1,6 +1,9 @@
 services:
   llm-local-service-cpu:
-    image: ghcr.io/sentiric/sentiric-llm-local-service:latest
+    # image: ghcr.io/sentiric/sentiric-llm-local-service:latest # <-- Bu satırı yorumla veya sil
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: llm-local-service-cpu
     environment:
       - ENV=development
