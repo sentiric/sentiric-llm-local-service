@@ -1,7 +1,12 @@
 # STAGE 1: Builder - Bağımlılıkları derle
 FROM python:3.11-slim-bookworm AS builder
 WORKDIR /wheelhouse
-RUN pip install --no-cache-dir wheel
+
+# --- DÜZELTME BURADA: pip wheel'den önce git'i kuruyoruz ---
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    pip install --no-cache-dir wheel && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir -r requirements.txt
 
