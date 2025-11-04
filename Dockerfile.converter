@@ -2,31 +2,14 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-ARG MODEL_NAME="microsoft/Phi-3-mini-4k-instruct"
-ARG COMPUTE_TYPE="int8"
+# Sadece script'i kopyala
+COPY ./scripts/convert_model.py .
 
-# --- DÜZELTME BURADA: Tüm işlemleri tek bir RUN komutunda birleştiriyoruz ---
-# Bu, tüm komutların aynı shell ve Python ortamında çalışmasını garanti eder.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
-    \
-    pip install --no-cache-dir \
-        "torch" --extra-index-url https://download.pytorch.org/whl/cpu \
-        "ctranslate2[transformers]>=4.0.0" \
-        "huggingface-hub>=0.20.0" && \
-    \
-    echo "==== Model indiriliyor: ${MODEL_NAME} ====" && \
-    HF_MODEL_PATH=$(python -c "from huggingface_hub import snapshot_download; path=snapshot_download(repo_id='${MODEL_NAME}', cache_dir='/models/hf_cache'); print(path)") && \
-    \
-    echo "==== Model dönüştürülüyor (${COMPUTE_TYPE}) ====" && \
-    python -c "import torch; import transformers; from ct2_transformers_converter.converter import main; import sys; sys.argv = ['ct2-transformers-converter', '--model', '${HF_MODEL_PATH}', '--output_dir', '/models/converted_model', '--quantization', '${COMPUTE_TYPE}', '--force']; main()" && \
-    \
-    echo "✅ Dönüştürme tamamlandı." && \
-    # Temizlik
-    apt-get purge -y --auto-remove git && \
-    apt-get clean && \
-    rm -rf /root/.cache/pip && \
-    rm -rf /var/lib/apt/lists/*
+# Gerekli ortam değişkenlerini Dockerfile'ın kendisinden al
+ARG MODEL_NAME
+ARG COMPUTE_TYPE
+ENV MODEL_NAME=${MODEL_NAME}
+ENV COMPUTE_TYPE=${COMPUTE_TYPE}
 
-# Bu konteynerin tek görevi, build sırasında /models volume'ünü doldurmaktır.
-CMD ["echo", "Model dönüştürme tamamlandı ve volume'e yazıldı."]
+# Tek görev: script'i çalıştır. Tüm mantık artık script'in içinde.
+CMD ["python", "convert_model.py"]
