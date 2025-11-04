@@ -1,0 +1,32 @@
+services:
+  llm-local-service-gpu:
+    image: ghcr.io/sentiric/sentiric-llm-local-service:gpu-latest
+    container_name: llm-local-service-gpu
+    environment:
+      - ENV=development
+      - LOG_LEVEL=debug
+      - LLM_LOCAL_SERVICE_DEVICE=cuda
+      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16
+      - LLM_LOCAL_SERVICE_MODEL_NAME=microsoft/Phi-3-mini-4k-instruct
+    volumes: 
+      - llm_model_cache:/app/model-cache
+    ports: 
+      - "16060:16060"
+      - "16061:16061"
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15m
+
+volumes:
+  llm_model_cache:

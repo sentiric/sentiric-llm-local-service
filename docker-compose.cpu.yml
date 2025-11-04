@@ -1,0 +1,25 @@
+services:
+  llm-local-service-cpu:
+    image: ghcr.io/sentiric/sentiric-llm-local-service:latest
+    container_name: llm-local-service-cpu
+    environment:
+      - ENV=development
+      - LOG_LEVEL=debug
+      - LLM_LOCAL_SERVICE_DEVICE=cpu
+      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=int8
+      - LLM_LOCAL_SERVICE_MODEL_NAME=microsoft/Phi-3-mini-4k-instruct
+    volumes: 
+      - llm_model_cache:/app/model-cache
+    ports: 
+      - "16060:16060"
+      - "16061:16061"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15m
+
+volumes:
+  llm_model_cache:
