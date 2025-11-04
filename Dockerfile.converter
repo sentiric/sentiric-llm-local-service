@@ -2,29 +2,22 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# --- DÜZELTME 1: ARG'lara varsayılan değerler ekliyoruz ---
 ARG MODEL_NAME="microsoft/Phi-3-mini-4k-instruct"
 ARG COMPUTE_TYPE="int8"
 
-# --- DÜZELTME 2: Gerekli tüm bağımlılıkları açıkça kuruyoruz ---
 RUN apt-get update && apt-get install -y --no-install-recommends git && \
     pip install --no-cache-dir \
         "torch" --extra-index-url https://download.pytorch.org/whl/cpu \
         "ctranslate2[transformers]>=4.0.0" \
-        "huggingface-hub>=0.20.0" \
-        "structlog" && \
+        "huggingface-hub>=0.20.0" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# --- DÜZELTME 3: Script'i modül olarak değil, doğrudan çalıştırıyoruz ---
+# --- DÜZELTME BURADA: Gerekli import'ları manuel olarak zorluyoruz ---
 RUN echo "==== Model indiriliyor: ${MODEL_NAME} ====" && \
     HF_MODEL_PATH=$(python -c "from huggingface_hub import snapshot_download; path=snapshot_download(repo_id='${MODEL_NAME}', cache_dir='/models/hf_cache'); print(path)") && \
     \
     echo "==== Model dönüştürülüyor (${COMPUTE_TYPE}) ====" && \
-    ct2-transformers-converter \
-        --model ${HF_MODEL_PATH} \
-        --output_dir /models/converted_model \
-        --quantization ${COMPUTE_TYPE} \
-        --force && \
+    python -c "import torch; import transformers; from ct2_transformers_converter.converter import main; import sys; sys.argv = ['ct2-transformers-converter', '--model', '${HF_MODEL_PATH}', '--output_dir', '/models/converted_model', '--quantization', '${COMPUTE_TYPE}', '--force']; main()" && \
     \
     echo "✅ Dönüştürme tamamlandı." && \
     # Temizlik
