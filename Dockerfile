@@ -1,5 +1,5 @@
 # =================================================================
-#    SENTIRIC LLM-LOCAL-SERVICE - CPU & ULTRA-OPTIMIZED (FINAL v3)
+#    SENTIRIC LLM-LOCAL-SERVICE - CPU & ULTRA-OPTIMIZED (FINAL v4)
 # =================================================================
 
 # --- STAGE 1: Converter ---
@@ -7,23 +7,27 @@
 FROM python:3.11-slim-bookworm AS converter
 WORKDIR /app
 
-# --- DÜZELTME BURADA: Gerekli tüm bağımlılıkları bu aşamada kuruyoruz ---
+# --- DÜZELTME 1: Tüm bağımlılıkları açıkça kuruyoruz ---
 RUN apt-get update && apt-get install -y --no-install-recommends git && \
-    pip install --no-cache-dir "ctranslate2[transformers]" "torch" --extra-index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir \
+        "torch" --extra-index-url https://download.pytorch.org/whl/cpu \
+        "transformers>=4.38.0" \
+        "ctranslate2>=4.0.0" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG MODEL_NAME
 ARG COMPUTE_TYPE
 
-# --- DÜZELTME BURADA: Script'i doğrudan çalıştırıyoruz (ilk yöntem) ---
-RUN ct2-transformers-converter \
+# --- DÜZELTME 2: Script'in tam yolunu bularak python ile çalıştırıyoruz ---
+# Bu, tüm kütüphanelerin doğru şekilde bulunmasını garanti eder.
+RUN CONVERTER_PATH=$(which ct2-transformers-converter) && \
+    python ${CONVERTER_PATH} \
     --model ${MODEL_NAME} \
     --output_dir model_ct2 \
     --quantization ${COMPUTE_TYPE} \
     --force
 
 # --- STAGE 2: Builder ---
-# Bu aşama, sadece runtime için gerekli olan küçük kütüphaneleri derler.
 FROM python:3.11-slim-bookworm AS builder
 WORKDIR /wheelhouse
 RUN apt-get update && apt-get install -y --no-install-recommends git && \
@@ -33,7 +37,6 @@ COPY requirements.txt .
 RUN pip wheel --no-cache-dir -r requirements.txt
 
 # --- STAGE 3: Final Production Image ---
-# Bu son imaj, ultra hafif olacak şekilde tasarlanmıştır.
 FROM python:3.11-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1 \
@@ -54,11 +57,8 @@ RUN pip install --no-cache-dir /wheelhouse/*.whl && rm -rf /wheelhouse /root/.ca
 RUN addgroup --system --gid 1001 appgroup && \
     adduser --system --no-create-home --uid 1001 --ingroup appgroup appuser
 
-# Dönüştürülmüş modeli 'converter' aşamasından kopyala
 COPY --from=converter /app/model_ct2 /app/model-cache/converted_model
-# Uygulama kodunu kopyala
 COPY --chown=appuser:appgroup ./app ./app
-# Tokenizer dosyalarını indirmek için cache dizini oluştur
 RUN mkdir -p /app/model-cache/hf_tokenizer && chown -R appuser:appgroup /app/model-cache
 USER appuser
 
