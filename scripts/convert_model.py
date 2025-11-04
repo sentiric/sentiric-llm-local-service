@@ -1,6 +1,7 @@
 import os
 import sys
-import structlog
+import logging  # <-- EKSİK OLAN SATIR BURADA
+import structlog # Bu import şu an kullanılmıyor ama ileride kullanılabilir, kalmasında sakınca yok.
 
 # Bu script, Docker dışında da çalışabilmesi için basit loglama kullanır
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
