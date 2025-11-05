@@ -3,6 +3,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
+from prometheus_client import start_http_server
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.services.llm_engine import LLMEngine
@@ -14,6 +15,12 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    
+    # Metrik sunucusunu ayrı bir portta başlat
+    metrics_port = settings.LLM_LOCAL_SERVICE_METRICS_PORT
+    start_http_server(metrics_port)
+    logger.info(f"📊 Prometheus metrics server started on port {metrics_port}")
+
     logger.info("🚀 LLM Local Service starting up...")
     
     engine = LLMEngine()
@@ -35,8 +42,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Prometheus metriklerini etkinleştir ve /metrics endpoint'ini oluştur
-Instrumentator().instrument(app).expose(app)
+# FastAPI uygulamasını metrik toplama için enstrümante et (ancak endpoint'i burada açma)
+Instrumentator().instrument(app)
 
 @app.get("/health", tags=["Health"])
 async def health_check():

@@ -27,5 +27,5 @@ RUN mkdir -p /app/model-cache && chown -R appuser:appgroup /app/model-cache
 USER appuser
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:16060/health || exit 1
-EXPOSE 16060 16061
+EXPOSE 16060 16061 16062
 CMD ["python", "-m", "app.runner"]

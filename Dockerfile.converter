@@ -2,14 +2,18 @@ FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Sadece script'i kopyala
+# MODERN VE UYUMLU KÜTÜPHANELERİ, TÜM ÇEKİRDEK BAĞIMLILIKLARIYLA BİRLİKTE KUR
+# 'openvino', 'optimum[intel]' kütüphanesinin çalışması için zorunludur.
+RUN pip install --no-cache-dir \
+    "optimum[intel]>=1.16.0" \
+    "openvino>=2023.3.0" \
+    "transformers>=4.40.0" \
+    "huggingface-hub>=0.20.0" \
+    "torch>=2.0.0" \
+    "accelerate>=0.25.0" --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Kütüphaneler kurulduktan sonra betiği kopyala
 COPY ./scripts/convert_model.py .
 
-# Gerekli ortam değişkenlerini Dockerfile'ın kendisinden al
-ARG MODEL_NAME
-ARG COMPUTE_TYPE
-ENV MODEL_NAME=${MODEL_NAME}
-ENV COMPUTE_TYPE=${COMPUTE_TYPE}
-
-# Tek görev: script'i çalıştır. Tüm mantık artık script'in içinde.
+# Container çalıştığında doğrudan betiği çalıştır
 CMD ["python", "convert_model.py"]

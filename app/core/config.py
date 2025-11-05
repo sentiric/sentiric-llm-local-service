@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     
     LLM_LOCAL_SERVICE_HTTP_PORT: int = 16060
     LLM_LOCAL_SERVICE_GRPC_PORT: int = 16061
+    LLM_LOCAL_SERVICE_METRICS_PORT: int = 16062
     LLM_LOCAL_SERVICE_MODEL_NAME: str = "microsoft/Phi-3-mini-4k-instruct"
     LLM_LOCAL_SERVICE_DEVICE: str = "auto"
     LLM_LOCAL_SERVICE_COMPUTE_TYPE: str = "auto"
@@ -16,7 +17,6 @@ class Settings(BaseSettings):
     def get_device(self) -> str:
         if self.LLM_LOCAL_SERVICE_DEVICE == "auto":
             try:
-                # Ctranslate2'nin CUDA desteği olup olmadığını kontrol etmenin en güvenilir yolu
                 return "cuda" if "cuda" in ctranslate2.get_supported_compute_types("cuda") else "cpu"
             except Exception:
                 return "cpu"

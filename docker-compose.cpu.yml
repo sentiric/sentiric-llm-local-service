@@ -27,8 +27,9 @@ services:
     volumes: 
       - llm_model_cache:/app/model-cache
     ports: 
-      - "16060:16060"
-      - "16061:16061"
+      - "16060:16060" # HTTP Health
+      - "16061:16061" # gRPC
+      - "16062:16062" # Prometheus Metrics
     restart: unless-stopped
     depends_on:
       llm-model-converter:
