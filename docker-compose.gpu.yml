@@ -1,6 +1,25 @@
 services:
+  llm-model-converter-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.converter
+    environment:
+      - MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
+      # GPU için betiğe doğru parametreleri veriyoruz
+      - DEVICE=cuda
+      - COMPUTE_TYPE=float16
+    volumes:
+      - llm_model_cache:/models
+    # Bu servisin GPU'ya erişebilmesi için deploy ayarları
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
   llm-local-service-gpu:
-    # image: ghcr.io/sentiric/sentiric-llm-local-service:gpu-latest # <-- Bu satırı yorumla veya sil
     build:
       context: .
       dockerfile: Dockerfile.gpu
@@ -9,14 +28,19 @@ services:
       - ENV=development
       - LOG_LEVEL=debug
       - LLM_LOCAL_SERVICE_DEVICE=cuda
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16
+      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16 # Bu, uygulama motorunun beklentisi
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
     volumes: 
       - llm_model_cache:/app/model-cache
     ports: 
       - "16060:16060"
       - "16061:16061"
+      - "16062:16062" # Metrik portunu da buraya ekliyoruz
     restart: unless-stopped
+    # Artık ana servis, GPU model converter'ın bitmesini bekleyecek
+    depends_on:
+      llm-model-converter-gpu:
+        condition: service_completed_successfully
     deploy:
       resources:
         reservations:
@@ -29,7 +53,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 15m
+      # GPU'da model yüklemesi daha uzun sürebilir, start_period'u artırabiliriz
+      start_period: 5m
 
 volumes:
   llm_model_cache:

@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.py[codz]
 .env
@@ -6,6 +7,15 @@ venv/
 dist/
 build/
 *.egg-info/
+
+# Test & Tools
 .pytest_cache/
+.mypy_cache/
+
+# Cache & Logs
 /model-cache/
 *.log
+
+# IDE & Editor
+.vscode/
+.idea/
