@@ -1,45 +1,59 @@
 services:
-  llm-model-converter:
+  llm-model-converter-gpu:
     build:
       context: .
       dockerfile: Dockerfile.converter
     environment:
       # Sadece standart ortam değişkenlerini kullanıyoruz
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-      - LLM_LOCAL_SERVICE_DEVICE=cpu
+      - LLM_LOCAL_SERVICE_DEVICE=cuda
       # Diğer yardımcı değişkenler
       - HF_HUB_ENABLE_HF_TRANSFER=0
-      - TRANSFORMERS_VERBOSITY=info      
+      - TRANSFORMERS_VERBOSITY=info
     volumes:
       - llm_model_cache:/models
-    # Bu servis işini yapıp çıkacak, port açmasına gerek yok.        
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
-  llm-local-service-cpu:
+  llm-local-service-gpu:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: llm-local-service-cpu
+      dockerfile: Dockerfile.gpu
+    container_name: llm-local-service-gpu
     environment:
       - ENV=development
       - LOG_LEVEL=debug
-      - LLM_LOCAL_SERVICE_DEVICE=cpu
+      - LLM_LOCAL_SERVICE_DEVICE=cuda
+      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16 # Bu, ana uygulamanın beklentisi
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
     volumes: 
       - llm_model_cache:/app/model-cache
     ports: 
-      - "16060:16060" # HTTP Health
-      - "16061:16061" # gRPC
-      - "16062:16062" # Prometheus Metrics
+      - "16060:16060"
+      - "16061:16061"
+      - "16062:16062"
     restart: unless-stopped
     depends_on:
-      llm-model-converter:
+      llm-model-converter-gpu:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 15s
+      start_period: 5m
 
 volumes:
   llm_model_cache:
