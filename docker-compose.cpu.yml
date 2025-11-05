@@ -3,13 +3,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.converter
-      args:
-        MODEL_NAME: ${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-        COMPUTE_TYPE: ${LLM_LOCAL_SERVICE_COMPUTE_TYPE:-int8}
     environment:
-      - MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-      - COMPUTE_TYPE=${LLM_LOCAL_SERVICE_COMPUTE_TYPE:-int8}
-      - DEVICE=cpu
+      # Sadece standart ortam değişkenlerini kullanıyoruz
+      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
+      - LLM_LOCAL_SERVICE_DEVICE=cpu
+      # Diğer yardımcı değişkenler
+      - HF_HUB_ENABLE_HF_TRANSFER=0
+      - TRANSFORMERS_VERBOSITY=info      
     volumes:
       - llm_model_cache:/models
     # Bu servis işini yapıp çıkacak, port açmasına gerek yok.        

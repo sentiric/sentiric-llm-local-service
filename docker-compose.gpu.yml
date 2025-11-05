@@ -1,60 +1,45 @@
 services:
-  llm-model-converter-gpu:
+  llm-model-converter:
     build:
       context: .
       dockerfile: Dockerfile.converter
     environment:
-      - MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-      # GPU için betiğe doğru parametreleri veriyoruz
-      - DEVICE=cuda
-      - COMPUTE_TYPE=float16
+      # Sadece standart ortam değişkenlerini kullanıyoruz
+      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
+      - LLM_LOCAL_SERVICE_DEVICE=cpu
+      # Diğer yardımcı değişkenler
+      - HF_HUB_ENABLE_HF_TRANSFER=0
+      - TRANSFORMERS_VERBOSITY=info      
     volumes:
       - llm_model_cache:/models
-    # Bu servisin GPU'ya erişebilmesi için deploy ayarları
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # Bu servis işini yapıp çıkacak, port açmasına gerek yok.        
 
-  llm-local-service-gpu:
+  llm-local-service-cpu:
     build:
       context: .
-      dockerfile: Dockerfile.gpu
-    container_name: llm-local-service-gpu
+      dockerfile: Dockerfile
+    container_name: llm-local-service-cpu
     environment:
       - ENV=development
       - LOG_LEVEL=debug
-      - LLM_LOCAL_SERVICE_DEVICE=cuda
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16 # Bu, uygulama motorunun beklentisi
+      - LLM_LOCAL_SERVICE_DEVICE=cpu
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
     volumes: 
       - llm_model_cache:/app/model-cache
     ports: 
-      - "16060:16060"
-      - "16061:16061"
-      - "16062:16062" # Metrik portunu da buraya ekliyoruz
+      - "16060:16060" # HTTP Health
+      - "16061:16061" # gRPC
+      - "16062:16062" # Prometheus Metrics
     restart: unless-stopped
-    # Artık ana servis, GPU model converter'ın bitmesini bekleyecek
     depends_on:
-      llm-model-converter-gpu:
+      llm-model-converter:
         condition: service_completed_successfully
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      # GPU'da model yüklemesi daha uzun sürebilir, start_period'u artırabiliriz
-      start_period: 5m
+      start_period: 15s
 
 volumes:
   llm_model_cache:
