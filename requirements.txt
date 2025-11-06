@@ -1,6 +1,8 @@
+# Ana LLM servisinin çalışma zamanı (runtime) bağımlılıkları
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
-ctranslate2==4.3.1
+# En son stabil CTranslate2 versiyonuna yükseltiyoruz
+ctranslate2==4.6.0
 transformers==4.43.3
 huggingface-hub>=0.20.0
 pydantic-settings==2.4.0

@@ -1,19 +1,17 @@
 FROM python:3.11-slim-bookworm
 
+# Gerekli sistem bağımlılıkları
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential git && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# MODERN VE UYUMLU KÜTÜPHANELERİ, TÜM ÇEKİRDEK BAĞIMLILIKLARIYLA BİRLİKTE KUR
-# 'openvino', 'optimum[intel]' kütüphanesinin çalışması için zorunludur.
-RUN pip install --no-cache-dir \
-    "optimum[intel]>=1.16.0" \
-    "openvino>=2023.3.0" \
-    "transformers>=4.40.0" \
-    "huggingface-hub>=0.20.0" \
-    "torch>=2.0.0" \
-    "accelerate>=0.25.0" --extra-index-url https://download.pytorch.org/whl/cpu
+# --- DEĞİŞİKLİK: Sadece converter'a özel requirements dosyasını kopyala ---
+COPY requirements.converter.txt .
 
-# Kütüphaneler kurulduktan sonra betiği kopyala
+# --- DEĞİŞİKLİK: Yeni dosyayı kullanarak bağımlılıkları kur ---
+RUN pip install --no-cache-dir -r requirements.converter.txt
+
 COPY ./scripts/convert_model.py .
-
-# Container çalıştığında doğrudan betiği çalıştır
-CMD ["python", "convert_model.py"]
+RUN mkdir /models
+ENTRYPOINT ["python", "convert_model.py"]

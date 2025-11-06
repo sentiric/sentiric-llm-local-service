@@ -10,7 +10,9 @@ class Settings(BaseSettings):
     LLM_LOCAL_SERVICE_HTTP_PORT: int = 16060
     LLM_LOCAL_SERVICE_GRPC_PORT: int = 16061
     LLM_LOCAL_SERVICE_METRICS_PORT: int = 16062
+    # --- DEĞİŞİKLİK BURADA ---
     LLM_LOCAL_SERVICE_MODEL_NAME: str = "microsoft/Phi-3-mini-4k-instruct"
+    # LLM_LOCAL_SERVICE_MODEL_NAME: str = "microsoft/Phi-4-mini-instruct"
     LLM_LOCAL_SERVICE_DEVICE: str = "auto"
     LLM_LOCAL_SERVICE_COMPUTE_TYPE: str = "auto"
     

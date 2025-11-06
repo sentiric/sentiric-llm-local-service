@@ -1,18 +1,34 @@
-# STAGE 1: Builder - Bağımlılıkları derle
-FROM python:3.11-slim-bookworm AS builder
+# STAGE 1: Builder
+# Bu katman, tüm bağımlılıkları derlemek için gereken her şeyi içerir.
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04 AS builder
+
+# --- DÜZELTME: Gerekli TÜM sistem ve Python geliştirme bağımlılıklarını TEK SEFERDE kuruyoruz ---
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    python3.11 \
+    python3.11-dev \
+    python3-pip \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3.11 /usr/bin/python
+
 WORKDIR /wheelhouse
+COPY requirements.txt .
 
-RUN apt-get update && apt-get install -y --no-install-recommends git && \
-    pip install --no-cache-dir wheel && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+# flash-attn'in derlenmesi için GEREKLİ TÜM build-time Python paketlerini kuruyoruz
+RUN python3.11 -m pip install --no-cache-dir packaging torch
 
-COPY requirements.gpu.txt .
-# --- DÜZELTME BURADA: --extra-index-url kaldırıldı ---
-RUN pip wheel --no-cache-dir -r requirements.gpu.txt
+# Flash Attention'ı kuruyoruz (artık python3.11-dev kurulu olduğu için çalışacak)
+RUN python3.11 -m pip install --no-cache-dir flash-attn --no-build-isolation
 
-# STAGE 2: Final - Çalışma zamanı imajı
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+# CTranslate2 ve diğer tüm runtime bağımlılıklarını wheel olarak hazırlıyoruz
+RUN python3.11 -m pip install --no-cache-dir wheel && \
+    sed -i 's/^ctranslate2==.*$/ctranslate2[cuda]==4.6.0/' requirements.txt && \
+    python3.11 -m pip wheel --no-cache-dir -r requirements.txt
+
+# STAGE 2: Final
+# Bu son katman, SADECE çalışma zamanı için gerekenleri içerir, torch'u veya dev paketlerini DEĞİL.
+FROM nvidia/cuda:12.1.1-base-ubuntu22.04
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -21,24 +37,31 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Sadece runtime için gereken sistem paketleri
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-venv python3-pip curl \
-    && apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    python3.11 \
+    python3.11-venv \
+    curl \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN python3.11 -m venv /opt/venv
 
+# torch ve dev bağımlılıklarını hariç tutarak sadece gereken .whl dosyalarını kopyalıyoruz
 COPY --from=builder /wheelhouse /wheelhouse
-RUN pip install --no-cache-dir /wheelhouse/*.whl && rm -rf /wheelhouse /root/.cache/pip
+RUN find /wheelhouse -name "*torch*" -type f -delete && \
+    /opt/venv/bin/pip install --no-cache-dir /wheelhouse/*.whl && \
+    rm -rf /wheelhouse /root/.cache/pip
 
 RUN addgroup --system --gid 1001 appgroup && \
     adduser --system --no-create-home --uid 1001 --ingroup appgroup appuser
+
 COPY --chown=appuser:appgroup ./app ./app
 RUN mkdir -p /app/model-cache && chown -R appuser:appgroup /app/model-cache
+
 USER appuser
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15m --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:16060/health || exit 1
 
-EXPOSE 16060 16061
+EXPOSE 16060 16061 16062
 CMD ["python", "-m", "app.runner"]

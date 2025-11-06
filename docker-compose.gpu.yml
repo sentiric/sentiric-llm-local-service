@@ -4,21 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile.converter
     environment:
-      # Sadece standart ortam değişkenlerini kullanıyoruz
+      # --- DEĞİŞİKLİK BURADA ---
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-      - LLM_LOCAL_SERVICE_DEVICE=cuda
-      # Diğer yardımcı değişkenler
-      - HF_HUB_ENABLE_HF_TRANSFER=0
-      - TRANSFORMERS_VERBOSITY=info
+      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16 
     volumes:
       - llm_model_cache:/models
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   llm-local-service-gpu:
     build:
@@ -29,7 +19,8 @@ services:
       - ENV=development
       - LOG_LEVEL=debug
       - LLM_LOCAL_SERVICE_DEVICE=cuda
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16 # Bu, ana uygulamanın beklentisi
+      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16
+      # --- DEĞİŞİKLİK BURADA ---
       - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
     volumes: 
       - llm_model_cache:/app/model-cache
@@ -53,7 +44,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 5m
+      start_period: 2m
 
 volumes:
   llm_model_cache:

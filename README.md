@@ -14,13 +14,14 @@ Bu servis, `llm-gateway-service` tarafından, düşük gecikmeli, güvenli veya 
 
 ## ⚠️ Model Dönüştürme Süreci (İlk Çalıştırma)
 
-Bu servis ilk kez `docker-compose.cpu.yml` ile başlatıldığında, `llm-model-converter` adında bir "init container" çalışır. Bu container'ın tek görevi, `.env` dosyasında belirtilen Hugging Face modelini indirmek ve `optimum-intel` (OpenVINO) kütüphanesini kullanarak yüksek performanslı bir formata dönüştürmektir.
+Bu servis ilk kez `docker-compose` ile başlatıldığında, `llm-model-converter` adında bir "init container" çalışır. Bu container'ın tek görevi, `.env` dosyasında belirtilen Hugging Face modelini indirmek ve `CTranslate2` kütüphanesinin kendi aracı olan `ct2-transformers-converter`'ı kullanarak yüksek performanslı bir formata dönüştürmektir.
 
-Bu işlem, modelin büyüklüğüne bağlı olarak **önemli miktarda sistem kaynağı (CPU ve RAM) tüketir** ve **uzun sürebilir (15-30+ dakika)**.
+Bu işlem, modelin CPU için `int8` veya GPU için `float16` gibi formatlara quantize edilmesini (nicemlenmesini) içerir. Bu yaklaşım, önceki yöntemlere göre daha stabildir ve bellek kullanımını daha etkin bir şekilde yönetir.
 
-### Sistem Gereksinimleri ve Çözümler:
-*   **Bellek (RAM):** Dönüştürme işlemi sırasında `microsoft/Phi-3-mini-4k-instruct` gibi bir model, 8GB'dan fazla RAM'e ihtiyaç duyabilir. Eğer sisteminizde yeterli fiziksel RAM yoksa, işlem `exit code 137` (Out of Memory) hatası ile sonlanabilir.
-    *   **Çözüm:** Bu tek seferlik işlem için sisteminize geçici bir **swap alanı** (sanal bellek) eklemeniz şiddetle tavsiye edilir. 16GB RAM'e sahip bir sistemde bile, en az 8-16GB'lık bir swap alanı oluşturmak, işlemin başarıyla tamamlanmasını garanti eder.
-*   **Sabır:** İşlem sırasında konteyner loglarında bir süre aktivite görmeyebilirsiniz. Bu normaldir. Lütfen süreci sonlandırmadan sabırla bekleyin. İşlem tamamlandığında, bu konteyner `exit code 0` ile çıkacak ve ana servis başlayacaktır.
+Yine de, bu işlem modelin büyüklüğüne bağlı olarak **önemli miktarda sistem kaynağı (CPU ve RAM) tüketebilir** ve **uzun sürebilir (10-25+ dakika)**.
 
-Bu dönüştürme işlemi sadece **ilk çalıştırmada** veya model cache'i silindiğinde gerçekleşir. Sonraki başlatmalar çok daha hızlı olacaktır.
+### Sistem Gereksinimleri ve Öneriler:
+*   **Bellek (RAM):** Dönüştürme işlemi sırasında `microsoft/Phi-3-mini-4k-instruct` gibi bir model için en az 8GB RAM önerilir. Daha büyük modeller için 16GB veya daha fazlası gerekebilir. Yetersiz bellek durumunda işlemin yavaşlaması veya başarısız olması ihtimaline karşı sisteminizde bir **swap alanı** (sanal bellek) bulunması faydalıdır.
+*   **Sabır:** İşlem sırasında konteyner loglarında modelin katmanlarının dönüştürüldüğüne dair çıktılar göreceksiniz. Lütfen süreci sonlandırmadan sabırla bekleyin. İşlem tamamlandığında, bu konteyner `exit code 0` ile çıkacak ve ana servis başlayacaktır.
+
+Bu dönüştürme işlemi sadece **ilk çalıştırmada** veya model önbelleği (`model-cache` volume'ü) silindiğinde gerçekleşir. Sonraki başlatmalar çok daha hızlı olacaktır.
