@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile.converter
     environment:
       # --- DEĞİŞİKLİK BURADA ---
-      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instructs}
+      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
       - LLM_LOCAL_SERVICE_COMPUTE_TYPE=int8 # CPU için int8 quantizasyon idealdir
     volumes:
       - llm_model_cache:/models
