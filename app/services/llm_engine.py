@@ -1,89 +1,117 @@
-import os
 import structlog
 import asyncio
-import time
-from typing import Generator as PyGenerator, List
-from ctranslate2 import Generator
-from transformers import AutoTokenizer
+import torch
 from app.core.config import settings
-from prometheus_client import Counter, Histogram
 
 logger = structlog.get_logger(__name__)
 
-GENERATED_TOKENS_COUNTER = Counter(
-    "llm_local_generated_tokens_total",
-    "Toplam üretilen token sayısı."
-)
-INFERENCE_LATENCY_HISTOGRAM = Histogram(
-    "llm_local_inference_latency_seconds",
-    "Token başına çıkarım gecikmesi (saniye).",
-    buckets=[0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.25, 0.5]
-)
+# Cihazı en başta bir kez tespit et
+DEVICE = "cuda" if torch.cuda.is_available() and settings.LLM_LOCAL_SERVICE_DEVICE != "cpu" else "cpu"
+
+# Cihaza göre gerekli kütüphaneleri import et
+if DEVICE == "cuda":
+    from vllm.engine.arg_utils import AsyncEngineArgs
+    from vllm.engine.async_llm_engine import AsyncLLMEngine
+    from vllm.sampling_params import SamplingParams
+    from vllm.utils import random_uuid
+else:
+    from threading import Thread
+    from transformers import AutoModelForCausalLM, AutoTokenizer, TextIteratorStreamer
 
 class LLMEngine:
     def __init__(self):
-        self.generator: Generator | None = None
-        self.tokenizer: AutoTokenizer | None = None
+        self.model = None
+        self.tokenizer = None
+        self.engine: 'AsyncLLMEngine' | None = None
         self.model_loaded = False
-        self.device = settings.get_device()
+        self.device = DEVICE
+        self.model_name = settings.LLM_LOCAL_SERVICE_MODEL_NAME
+        self._engine_ready_event = asyncio.Event()
+
+        logger.info(f"Cihaz '{self.device}' olarak ayarlandı. Uygun motor başlatılıyor...")
+
+        if self.device == "cuda":
+            try:
+                engine_args = AsyncEngineArgs(
+                    model=self.model_name,
+                    trust_remote_code=True,
+                    gpu_memory_utilization=settings.VLLM_GPU_MEMORY_UTILIZATION,
+                    download_dir=settings.VLLM_DOWNLOAD_DIR,
+                    # --- OPTİMİZASYON: Quantization'ı etkinleştiriyoruz ---
+                    quantization="awq"
+                )
+                self.engine = AsyncLLMEngine.from_engine_args(engine_args)
+            except Exception as e:
+                logger.error("vLLM motoru başlatılırken kritik hata!", error=str(e), exc_info=True)
+                self.engine = None
+        else: # CPU durumu
+            pass  # Yükleme işlemi load_model içinde yapılacak
+
+    async def _check_vllm_status(self):
+        if not self.engine: return
+        while not await self.engine.is_ready():
+            logger.warning("vLLM motoru hazırlanıyor, 5 saniye bekleniyor...")
+            await asyncio.sleep(5)
+        self.model_loaded = True
+        self._engine_ready_event.set()
+        logger.info("✅ vLLM motoru (GPU) başarıyla yüklendi ve servise hazır.")
+
+    def _load_transformers_model_sync(self):
+        try:
+            logger.info("Loading Hugging Face model for CPU...", model=self.model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                torch_dtype="auto",
+                cache_dir=settings.VLLM_DOWNLOAD_DIR,
+                trust_remote_code=True
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, cache_dir=settings.VLLM_DOWNLOAD_DIR)
+            self.model_loaded = True
+            self._engine_ready_event.set()
+            logger.info("✅ Hugging Face (CPU) modeli başarıyla yüklendi ve servise hazır.")
+        except Exception as e:
+            logger.error("❌ Hugging Face (CPU) modeli yüklenirken hata oluştu", error=str(e), exc_info=True)
 
     async def load_model(self):
-        if self.model_loaded:
-            return
+        if self.device == "cuda":
+            asyncio.create_task(self._check_vllm_status())
+        else:
+            await asyncio.to_thread(self._load_transformers_model_sync)
 
-        ct2_model_path = "/app/model-cache/converted_model"
-        tokenizer_name = settings.LLM_LOCAL_SERVICE_MODEL_NAME
+    async def generate_stream(self, prompt: str):
+        await self._engine_ready_event.wait()
 
-        try:
-            while not os.path.exists(os.path.join(ct2_model_path, "model.bin")):
-                logger.warning("Dönüştürülmüş model bekleniyor...", path=ct2_model_path)
-                await asyncio.sleep(5)
-
-            logger.info("Loading pre-converted CTranslate2 model...", path=ct2_model_path, device=self.device)
-            self.generator = Generator(ct2_model_path, device=self.device)
-            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, cache_dir="/app/model-cache/hf_tokenizer")
-            self.model_loaded = True
-            logger.info("✅ Local LLM model and tokenizer loaded successfully.")
-        except Exception as e:
-            logger.error("❌ Failed to load local LLM resources", error=str(e), exc_info=True)
-            self.model_loaded = False
-    
-    def generate_stream(self, prompt: str) -> PyGenerator[str, None, None]:
-        if not self.model_loaded or not self.tokenizer or not self.generator:
-            raise RuntimeError("Model is not loaded.")
-        
-        # --- YENİ: PHI-4 SOHBET ŞABLONU UYGULAMASI ---
-        # Gelen prompt'u modelin beklediği mesaj formatına dönüştür.
-        messages = [{"role": "user", "content": prompt}]
-        
-        # Transformers tokenizer'ı kullanarak doğru formatlanmış prompt'u oluştur.
-        # add_generation_prompt=True, modelin yanıt vermesi için gereken '<|assistant|>' 
-        # gibi son token'ları ekler.
-        formatted_prompt = self.tokenizer.apply_chat_template(
-            messages, 
-            tokenize=False, 
-            add_generation_prompt=True
-        )
-        
-        # Formatlanmış prompt'u CTranslate2'nin beklediği token listesine çevir.
-        prompt_tokens = self.tokenizer.convert_ids_to_tokens(self.tokenizer.encode(formatted_prompt))
-        # --- DEĞİŞİKLİK SONU ---
-
-        step_results = self.generator.generate_tokens(
-            prompt_tokens,
-            sampling_temperature=0.7,
-            max_length=4096, # Maksimum üretilecek token sayısını makul bir değerde tutalım
-        )
-
-        for step_result in step_results:
-            start_time = time.time()
+        if self.device == "cuda" and self.engine:
+            tokenizer = await self.engine.get_tokenizer()
+            messages = [{"role": "user", "content": prompt}]
+            final_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
             
-            # Bitiş token'ını (<|end|>) istemciye gönderme
-            if step_result.token == "<|end|>":
-                break
+            sampling_params = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=2048)
+            request_id = f"sentiric-{random_uuid()}"
+            results_generator = self.engine.generate(final_prompt, sampling_params, request_id)
 
-            yield step_result.token
+            previous_text = ""
+            async for request_output in results_generator:
+                new_text = request_output.outputs[0].text
+                yield new_text[len(previous_text):]
+                previous_text = new_text
+        
+        elif self.device == "cpu" and self.model and self.tokenizer:
+            streamer = TextIteratorStreamer(self.tokenizer, skip_prompt=True, skip_special_tokens=True)
+            messages = [{"role": "user", "content": prompt}]
+            text_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            inputs = self.tokenizer([text_prompt], return_tensors="pt")
+
+            generation_kwargs = dict(**inputs, streamer=streamer, max_new_tokens=2048, temperature=0.7, do_sample=True)
             
-            latency = time.time() - start_time
-            INFERENCE_LATENCY_HISTOGRAM.observe(latency)
-            GENERATED_TOKENS_COUNTER.inc()
+            thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+            thread.start()
+
+            for token in streamer:
+                yield token
+            
+            thread.join()
+        
+        else:
+            logger.error("generate_stream çağrıldı ancak uygun motor bulunamadı.")
+            raise RuntimeError("No valid engine found for the current device.")

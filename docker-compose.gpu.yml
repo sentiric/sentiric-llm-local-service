@@ -1,37 +1,24 @@
 services:
-  llm-model-converter-gpu:
-    build:
-      context: .
-      dockerfile: Dockerfile.converter
-    environment:
-      # --- DEĞİŞİKLİK BURADA ---
-      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16 
-    volumes:
-      - llm_model_cache:/models
-
   llm-local-service-gpu:
     build:
       context: .
       dockerfile: Dockerfile.gpu
     container_name: llm-local-service-gpu
+    # Ortam değişkenleri .env dosyasından veya buradan yönetilebilir
     environment:
-      - ENV=development
-      - LOG_LEVEL=debug
-      - LLM_LOCAL_SERVICE_DEVICE=cuda
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=float16
-      # --- DEĞİŞİKLİK BURADA ---
-      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
+      - LLM_LOCAL_SERVICE_MODEL_NAME=microsoft/Phi-3-mini-4k-instruct
+      - LOG_LEVEL=info
     volumes: 
+      # Hugging Face modellerini ve cache'i kalıcı hale getiriyoruz
       - llm_model_cache:/app/model-cache
+      # vLLM'in daha hızlı yüklenmesi için /root/.cache/huggingface'i de bağlıyoruz
+      - llm_hf_cache:/root/.cache/huggingface
     ports: 
-      - "16060:16060"
-      - "16061:16061"
-      - "16062:16062"
+      - "16060:16060" # HTTP Health
+      - "16061:16061" # gRPC
+      - "16062:16062" # Prometheus Metrics
     restart: unless-stopped
-    depends_on:
-      llm-model-converter-gpu:
-        condition: service_completed_successfully
+    # GPU kaynaklarını konteynere atıyoruz
     deploy:
       resources:
         reservations:
@@ -42,9 +29,11 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 20s
       retries: 5
-      start_period: 2m
+      # Modelin indirilip yüklenmesi için çok daha uzun bir süre tanıyoruz
+      start_period: 20m
 
 volumes:
   llm_model_cache:
+  llm_hf_cache:

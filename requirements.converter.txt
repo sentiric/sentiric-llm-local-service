@@ -1,7 +1,0 @@
-# Model dönüştürme işlemi için gereken tüm bağımlılıklar.
-# En son stabil CTranslate2 versiyonuna yükseltiyoruz
-ctranslate2==4.6.0
-transformers==4.49.0
-torch==2.5.1
-huggingface-hub>=0.20.0
-sentiric-contracts-py @ git+https://github.com/sentiric/sentiric-contracts.git@v1.9.5

@@ -1,43 +1,33 @@
 services:
-  llm-model-converter:
-    build:
-      context: .
-      dockerfile: Dockerfile.converter
-    environment:
-      # --- DEĞİŞİKLİK BURADA ---
-      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=int8 # CPU için int8 quantizasyon idealdir
-    volumes:
-      - llm_model_cache:/models
-
   llm-local-service-cpu:
     build:
       context: .
+      # CPU için olan Dockerfile'ı kullanıyoruz
       dockerfile: Dockerfile
     container_name: llm-local-service-cpu
     environment:
-      - ENV=development
-      - LOG_LEVEL=debug
+      # Modeli Phi-4 olarak ayarlıyoruz
+      - LLM_LOCAL_SERVICE_MODEL_NAME=microsoft/Phi-3-mini-4k-instruct
+      # Motora CPU'da çalışmasını söylüyoruz
       - LLM_LOCAL_SERVICE_DEVICE=cpu
-      - LLM_LOCAL_SERVICE_COMPUTE_TYPE=int8 
-      # --- DEĞİŞİKLİK BURADA ---
-      - LLM_LOCAL_SERVICE_MODEL_NAME=${LLM_LOCAL_SERVICE_MODEL_NAME:-microsoft/Phi-3-mini-4k-instruct}
+      - LOG_LEVEL=info
     volumes: 
+      # Modellerin indirileceği ve kalıcı olacağı yerler
       - llm_model_cache:/app/model-cache
+      - llm_hf_cache:/root/.cache/huggingface
     ports: 
       - "16060:16060" # HTTP Health
       - "16061:16061" # gRPC
       - "16062:16062" # Prometheus Metrics
     restart: unless-stopped
-    depends_on:
-      llm-model-converter:
-        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:16060/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 20s
       retries: 5
-      start_period: 15s
+      # Modelin indirilip CPU'da yüklenmesi çok uzun sürebilir, bu yüzden süreyi cömert tutuyoruz
+      start_period: 25m
 
 volumes:
   llm_model_cache:
+  llm_hf_cache:

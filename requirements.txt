@@ -1,14 +1,24 @@
-# Ana LLM servisinin çalışma zamanı (runtime) bağımlılıkları
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-# En son stabil CTranslate2 versiyonuna yükseltiyoruz
-ctranslate2==4.6.0
-transformers==4.43.3
-huggingface-hub>=0.20.0
-pydantic-settings==2.4.0
-structlog==23.3.0
+# Temel web ve sunucu bağımlılıkları
+fastapi>=0.107.0
+uvicorn[standard]>=0.24.0
+
+# Ana çıkarım motoru ve bağımlılıkları
+vllm==0.7.3
+transformers>=4.49.0
+accelerate
+
+# --- YENİ: vLLM'in AWQ quantizasyonu için bu kütüphane zorunludur ---
+autoawq
+
+# Yardımcı ve yapılandırma kütüphaneleri
+pydantic-settings
+structlog
+
+# gRPC ve API Kontratları
 grpcio>=1.62.0
 grpcio-tools>=1.62.0
 sentiric-contracts-py @ git+https://github.com/sentiric/sentiric-contracts.git@v1.9.5
-prometheus-client==0.20.0
-prometheus-fastapi-instrumentator==6.0.0
+
+# Gözlemlenebilirlik ve metrikler
+prometheus-client
+prometheus-fastapi-instrumentator

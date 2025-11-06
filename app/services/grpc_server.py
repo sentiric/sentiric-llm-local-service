@@ -21,11 +21,15 @@ class LLMLocalService(local_pb2_grpc.LLMLocalServiceServicer):
                 await context.abort(grpc.StatusCode.UNAVAILABLE, "Model is not ready.")
             if not request.prompt or not request.prompt.strip():
                 await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Prompt cannot be empty.")
-            for token in self.engine.generate_stream(request.prompt):
+            
+            async for token in self.engine.generate_stream(request.prompt):
                 yield local_pb2.LocalGenerateStreamResponse(token=token)
+        
         except asyncio.CancelledError:
             logger.warning("Stream cancelled by client.", peer=context.peer())
+        
         except Exception:
+            # --- DÜZELTME: Bu 'except' bloğunun içi boş olamaz. Loglama ekliyoruz. ---
             logger.error("Unhandled exception during gRPC stream generation.", exc_info=True)
             await context.abort(grpc.StatusCode.INTERNAL, "An internal error occurred during stream generation.")
 
